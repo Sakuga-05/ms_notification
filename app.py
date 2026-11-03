@@ -136,6 +136,44 @@ def senemail():
     return jsonify(message="Correo enviado.", id=message_id), 200
 
 
+@app.post("/notifications/password-reset")
+def notifications_password_reset():
+    if not request.is_json:
+        return jsonify(error="El cuerpo debe ser JSON."), 415
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error="El cuerpo debe ser un objeto JSON."), 400
+
+    to = data.get("to") or data.get("email")
+    code = data.get("code")
+    if not isinstance(to, str) or not to.strip():
+        return jsonify(error="El campo 'to' es obligatorio y debe ser texto."), 400
+    if not code or not str(code).strip():
+        return jsonify(error="El campo 'code' es obligatorio."), 400
+
+    code_str = str(code).strip()
+    subject = "Recuperación de contraseña - OneSports"
+    text = (
+        f"Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en OneSports.\n\n"
+        f"Tu código de recuperación es:\n\n"
+        f"    {code_str}\n\n"
+        f"Este código es válido por 10 minutos.\n"
+        f"Si no solicitaste restablecer tu contraseña, ignora este mensaje.\n"
+        f"Tu contraseña NO cambiará hasta que ingreses este código y establezcas una nueva.\n"
+    )
+
+    try:
+        message_id = send_email(to.strip(), text, subject=subject)
+    except GmailAuthorizationError as error:
+        return jsonify(error=str(error)), 503
+    except Exception:
+        logger.exception("No se pudo enviar el correo de recuperación de contraseña")
+        return jsonify(error="No se pudo enviar el correo."), 502
+
+    return jsonify(message="Código de recuperación enviado.", id=message_id), 200
+
+
 @app.errorhandler(413)
 def request_too_large(_error):
     return jsonify(error="El cuerpo de la solicitud supera el límite de 1 MB."), 413
